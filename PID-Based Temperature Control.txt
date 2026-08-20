@@ -1,0 +1,182 @@
+%% PID-Based Temperature Control with Disturbance Rejection
+
+% Ambient and initial temperature
+Tambient = 25;      % °C
+Tinitial = 25;      % °C
+Ttarget = 50;       % Target temperature, °C
+
+% Thermal system parameters
+C = 500;            % Thermal capacity, J/°C
+k = 2;              % Heat loss coefficient, W/°C
+
+% Simulation settings
+dt = 0.1;           % Time step, s
+Tsim = 500;         % Total simulation time, s
+
+% Heater power for the system without PID control
+P = 150;            % W
+
+% Create time vector
+t = 0:0.1:Tsim;
+
+% Temperature array for the system without PID
+T = zeros(size(t));
+T(1) = Tinitial;
+
+% Simulate the thermal system without PID
+for i = 2:length(t)
+
+    % Increase the heat loss coefficient at 100 seconds
+    % This represents an external disturbance
+    if t(i) < 100
+        k = 2;
+    else
+        k = 5;
+    end
+
+    % Calculate heat loss to the environment
+    Ploss = k * (T(i-1) - Tambient);
+
+    % Net heating power
+    Pnet = P - Ploss;
+
+    % Temperature change
+    dT = (Pnet / C) * dt;
+
+    % Update temperature
+    T(i) = T(i-1) + dT;
+end
+
+% Plot the system response without PID
+plot(t, T);
+hold on;
+yline(Ttarget, '--', 'Target = 50°C');
+xline(100, '--', 'Disturbance');
+hold off;
+
+grid on;
+ylabel("Temperature (°C)");
+title("Without PID - With Disturbance");
+legend("Without PID");
+
+
+%% PID Controller
+
+% Initialize PID variables
+error = 0;
+prev_error = 0;
+integral = 0;
+Derivative = 0;
+
+% PID gains
+kp = 3;
+ki = 0.045;
+kd = 0.3;
+
+% Heater power limits
+Pmax = 150;
+Pmin = 0;
+
+Ptotal = 0;
+
+% Temperature array for the PID-controlled system
+T_pid = zeros(size(t));
+T_pid(1) = Tinitial;
+
+
+%% PID Simulation
+
+for i = 2:length(t)
+
+    % Calculate the current temperature error
+    error = Ttarget - T_pid(i-1);
+
+    % Proportional term
+    Pcontrol = kp * error;
+
+    % Derivative term
+    Derivative = (error - prev_error) / dt;
+
+    % Calculate PID output before applying the power limit
+    Ptotal = Pcontrol + ki * integral + kd * Derivative;
+
+
+    %% Anti-Windup
+    % If the controller is already at its power limit and
+    % the error is trying to push it further in the same direction,
+    % the integral term is not updated.
+    %
+    % This prevents the integral term from continuously increasing
+    % while the heater is saturated.
+
+    if (Ptotal > Pmax && error > 0) || ...
+       (Ptotal < Pmin && error < 0)
+
+        % Do not update the integral term
+
+    else
+
+        % Normal integral calculation
+        integral = integral + error * dt;
+
+    end
+
+
+    % Recalculate PID output after updating the integral term
+    Ptotal = Pcontrol + ki * integral + kd * Derivative;
+
+    % Limit the heater power between 0 and 150 W
+    Ptotal = min(max(Ptotal, Pmin), Pmax);
+
+
+    %% Disturbance for reality
+
+    % Apply the same disturbance to the PID-controlled system
+    if t(i) < 100
+        k = 2;
+    else
+        k = 5;
+    end
+
+    % Calculate heat loss
+    Ploss = k * (T_pid(i-1) - Tambient);
+
+    % Calculate net heating power
+    Pnet = Ptotal - Ploss;
+
+    % Calculate temperature change
+    dT = (Pnet / C) * dt;
+
+    % Update the temperature
+    T_pid(i) = T_pid(i-1) + dT;
+
+    % Store the previous error for the derivative term
+    prev_error = error;
+
+end
+
+
+%% PID Result
+
+% Plot the PID-controlled temperature
+figure;
+
+plot(t, T_pid, 'LineWidth', 1.5);
+
+hold on;
+
+% Target temperature
+yline(Ttarget, '--', 'Target = 50°C');
+
+% Disturbance time
+xline(100, '--', 'Disturbance');
+
+hold off;
+
+grid on;
+
+xlabel("Time (s)");
+ylabel("Temperature (°C)");
+title("PID Temperature Control with Disturbance Rejection");
+
+legend("PID Temperature");
