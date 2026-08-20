@@ -25,6 +25,7 @@ The thermal model is based on:
 - Simulation time: 500 s
 
 At 100 seconds, the heat loss coefficient changes from **2 to 5 W/°C** to simulate a disturbance.
+
 PID gains were tuned experimentally to achieve fast response while minimizing overshoot.
 
 ## Result
